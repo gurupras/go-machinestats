@@ -11,8 +11,8 @@ import (
 	kingpin "gopkg.in/alecthomas/kingpin.v2"
 
 	machinestats "github.com/gurupras/go-machinestats"
+	"github.com/gurupras/statsd"
 	log "github.com/sirupsen/logrus"
-	statsd "gopkg.in/alexcesaro/statsd.v2"
 )
 
 // GetOutboundIP retrieves the preferred outbound ip of this machine
@@ -60,7 +60,7 @@ func main() {
 	var conn *statsd.Client
 	var err error
 	for {
-		conn, err = statsd.New(addr)
+		conn, err = statsd.New(addr, statsd.Prefix(*prefix))
 		if err != nil {
 			log.Errorf("Failed to set up connection: %v\n", err)
 		} else {
@@ -90,7 +90,7 @@ func main() {
 			wg.Add(1)
 			go func(statInterface machinestats.Stat) {
 				defer wg.Done()
-				stat := conn.Clone(statsd.Prefix(*prefix))
+				stat := conn.Clone(statsd.Prefix(*prefix), statsd.TagsFormat)
 				name := statInterface.Name()
 				statType := statInterface.Type()
 				// FIXME: We're feeding in proc/stat to all stat objects
