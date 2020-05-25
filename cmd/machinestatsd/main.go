@@ -89,15 +89,15 @@ func main() {
 			return
 		}
 		wg := sync.WaitGroup{}
-		for _, mStat := range stats {
+		for _, statInterface := range stats {
 			wg.Add(1)
-			go func(mStat machinestats.Stat) {
+			go func(statInterface machinestats.Stat) {
 				defer wg.Done()
 				stat := conn.Clone(statsd.Prefix(ipStr))
-				name := mStat.Name()
-				statType := mStat.Type()
+				name := statInterface.Name()
+				statType := statInterface.Type()
 				// FIXME: We're feeding in proc/stat to all stat objects
-				value, err := mStat.Measure(procStatLines)
+				value, err := statInterface.Measure(procStatLines)
 				if err != nil {
 					log.Errorf("Failed to parse stat '%v': %v\n", name, err)
 					return
@@ -110,7 +110,7 @@ func main() {
 					stat.Count(name, value)
 				}
 				log.Debugf("Logged stat '%v'\n", name)
-			}(mStat)
+			}(statInterface)
 		}
 		wg.Wait()
 	}
