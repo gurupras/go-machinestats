@@ -74,9 +74,6 @@ func main() {
 		&machinestats.NetStat{},
 	}
 
-	ip := GetOutboundIP().String()
-	ipStr := strings.ReplaceAll(ip, ".", "-")
-
 	for idx := -1; idx < runtime.NumCPU(); idx++ {
 		cpuLoadStat := machinestats.NewCPULoadStat(idx)
 		stats = append(stats, cpuLoadStat)
@@ -93,7 +90,7 @@ func main() {
 			wg.Add(1)
 			go func(statInterface machinestats.Stat) {
 				defer wg.Done()
-				stat := conn.Clone(statsd.Prefix(ipStr))
+				stat := conn.Clone(statsd.Prefix(*prefix))
 				name := statInterface.Name()
 				statType := statInterface.Type()
 				// FIXME: We're feeding in proc/stat to all stat objects
