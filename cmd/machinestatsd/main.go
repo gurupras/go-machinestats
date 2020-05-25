@@ -57,9 +57,16 @@ func main() {
 
 	addr := statsd.Address(*address)
 
-	conn, err := statsd.New(addr)
-	if err != nil {
-		log.Fatalf("Failed to set up connection: %v\n", err)
+	var conn *statsd.Client
+	var err error
+	for {
+		conn, err = statsd.New(addr)
+		if err != nil {
+			log.Errorf("Failed to set up connection: %v\n", err)
+		} else {
+			break
+		}
+		time.Sleep(1000 * time.Millisecond)
 	}
 	defer conn.Close()
 
