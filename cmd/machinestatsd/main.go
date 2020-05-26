@@ -58,15 +58,16 @@ func main() {
 	addr := statsd.Address(*address)
 
 	ip := GetOutboundIP().String()
+	ipPrefix := strings.ReplaceAll(ip, ".", "-")
 
 	var conn *statsd.Client
 	var err error
 	for {
 		conn, err = statsd.New(
 			addr,
-			statsd.Prefix(*prefix),
-			statsd.TagsFormat(statsd.Graphite),
-			statsd.Tags("ip", ip),
+			// Uncomment these once you figure out how to get Grafana to work with tags
+			// statsd.TagsFormat(statsd.Datadog),
+			// statsd.Tags("ip", ip, "alias", *prefix),
 		)
 		if err != nil {
 			log.Errorf("Failed to set up connection: %v\n", err)
@@ -97,7 +98,9 @@ func main() {
 			wg.Add(1)
 			go func(statInterface machinestats.Stat) {
 				defer wg.Done()
-				stat := conn.Clone()
+				stat := conn.Clone(
+					statsd.Prefix(ipPrefix),
+				)
 				name := statInterface.Name()
 				statType := statInterface.Type()
 				// FIXME: We're feeding in proc/stat to all stat objects
@@ -109,11 +112,13 @@ func main() {
 				switch statType {
 				case machinestats.Gauge:
 					stat.Gauge(name, value)
+					log.Debugf("Logged gauge '%v'\n", name)
 					break
 				case machinestats.Counter:
 					stat.Count(name, value)
+					log.Debugf("Logged counter '%v'\n", name)
+					break
 				}
-				log.Debugf("Logged stat '%v'\n", name)
 			}(statInterface)
 		}
 		wg.Wait()
