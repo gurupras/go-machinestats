@@ -57,10 +57,17 @@ func main() {
 
 	addr := statsd.Address(*address)
 
+	ip := GetOutboundIP().String()
+
 	var conn *statsd.Client
 	var err error
 	for {
-		conn, err = statsd.New(addr, statsd.Prefix(*prefix))
+		conn, err = statsd.New(
+			addr,
+			statsd.Prefix(*prefix),
+			statsd.TagsFormat(statsd.Graphite),
+			statsd.Tags("ip", ip),
+		)
 		if err != nil {
 			log.Errorf("Failed to set up connection: %v\n", err)
 		} else {
@@ -90,7 +97,7 @@ func main() {
 			wg.Add(1)
 			go func(statInterface machinestats.Stat) {
 				defer wg.Done()
-				stat := conn.Clone(statsd.Prefix(*prefix), statsd.TagsFormat)
+				stat := conn.Clone()
 				name := statInterface.Name()
 				statType := statInterface.Type()
 				// FIXME: We're feeding in proc/stat to all stat objects
