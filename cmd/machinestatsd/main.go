@@ -48,13 +48,14 @@ var (
 	defaultAllCpus  = initDefaultAllCPUs(numCPUs)
 	defaultAddress  = getEnv("STATSD_ADDRESS", ":8125")
 	defaultInterval = getEnv("STATSD_INTERVAL", "3000")
-	defaultPrefix   = getEnv("STATSD_PREFIX", GetOutboundIP().String())
+	defaultPrefix   = getEnv("STATSD_PREFIX", "")
 
 	verbose  = kingpin.Flag("verbose", "Verbose logs").Short('v').Bool()
 	allCPUs  = kingpin.Flag("all-cpus", "Log each individual CPU").Short('C').Default(defaultAllCpus).Bool()
 	address  = kingpin.Flag("statsd-address", "Statsd server address").Short('a').Default(defaultAddress).String()
 	interval = kingpin.Flag("statsd-interval", "Interval at which stats are collected periodically. In milliseconds").Short('d').Default(defaultInterval).Int()
 	prefix   = kingpin.Flag("statsd-prefix", "Prefix with which all metrics are sent").Short('p').Default(defaultPrefix).String()
+	prefixIP = kingpin.Flag("prefix-ip", "Add IP address as part of prefix").Default("false").Bool()
 )
 
 func main() {
@@ -102,6 +103,15 @@ func main() {
 		}
 	}
 
+	prefixArr := make([]string, 0)
+	if strings.Compare(*prefix, "") != 0 {
+		prefixArr = append(prefixArr, *prefix)
+	}
+	if *prefixIP {
+		prefixArr = append(prefixArr, ipPrefix)
+	}
+	finalPrefix := strings.Join(prefixArr, ".")
+
 	publishStats := func() {
 		procStatLines, err := machinestats.ReadProcStat()
 		if err != nil {
@@ -114,7 +124,7 @@ func main() {
 			go func(statInterface machinestats.Stat) {
 				defer wg.Done()
 				stat := conn.Clone(
-					statsd.Prefix(ipPrefix),
+					statsd.Prefix(finalPrefix),
 				)
 				name := statInterface.Name()
 				statType := statInterface.Type()
