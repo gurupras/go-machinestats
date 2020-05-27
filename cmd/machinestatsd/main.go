@@ -36,12 +36,22 @@ func getEnv(key, defaultValue string) string {
 	return val
 }
 
+func initDefaultAllCPUs(ncpu int) string {
+	if ncpu > 1 {
+		return "true"
+	}
+	return "false"
+}
+
 var (
+	numCPUs         = runtime.NumCPU()
+	defaultAllCpus  = initDefaultAllCPUs(numCPUs)
 	defaultAddress  = getEnv("STATSD_ADDRESS", ":8125")
 	defaultInterval = getEnv("STATSD_INTERVAL", "3000")
 	defaultPrefix   = getEnv("STATSD_PREFIX", GetOutboundIP().String())
 
 	verbose  = kingpin.Flag("verbose", "Verbose logs").Short('v').Bool()
+	allCPUs  = kingpin.Flag("all-cpus", "Log each individual CPU").Short('C').Default(defaultAllCpus).Bool()
 	address  = kingpin.Flag("statsd-address", "Statsd server address").Short('a').Default(defaultAddress).String()
 	interval = kingpin.Flag("statsd-interval", "Interval at which stats are collected periodically. In milliseconds").Short('d').Default(defaultInterval).Int()
 	prefix   = kingpin.Flag("statsd-prefix", "Prefix with which all metrics are sent").Short('p').Default(defaultPrefix).String()
@@ -80,11 +90,16 @@ func main() {
 
 	stats := []machinestats.Stat{
 		&machinestats.NetStat{},
+		// The overall CPU usage line in /proc/stat is in line #0. Subsequent lines represent CPUs 0, 1, 2, ...
+		// Thus, we use cpu-load.-1 to depict the overall CPU utilization
+		machinestats.NewCPULoadStat(-1),
 	}
 
-	for idx := -1; idx < runtime.NumCPU(); idx++ {
-		cpuLoadStat := machinestats.NewCPULoadStat(idx)
-		stats = append(stats, cpuLoadStat)
+	if *allCPUs {
+		for idx := 0; idx < runtime.NumCPU(); idx++ {
+			cpuLoadStat := machinestats.NewCPULoadStat(idx)
+			stats = append(stats, cpuLoadStat)
+		}
 	}
 
 	publishStats := func() {
