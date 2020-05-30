@@ -39,10 +39,19 @@ func (s *statLine) total() int64 {
 	return total
 }
 
+func (s *statLine) getActiveTime() int64 {
+	return s.user + s.nice + s.system + s.irq + s.softIRQ + s.steal + s.guest + s.guestNice
+}
+
+func (s *statLine) getIdleTime() int64 {
+	return s.idle + s.ioWait
+}
+
 func calculateBusyness(now, old *statLine) float64 {
-	deltaTotal := now.totalAllTime - old.totalAllTime
-	deltaIdle := now.idleAllTime - old.idleAllTime
-	return float64(deltaTotal-deltaIdle) / float64(deltaTotal)
+	active := now.getActiveTime() - old.getActiveTime()
+	idle := now.getIdleTime() - old.getIdleTime()
+	total := active + idle
+	return float64(active) / float64(total)
 }
 
 // processCPUStatLine processes a stat line from /proc/stat corresponding to a CPU
@@ -96,7 +105,8 @@ func processCPUStatLine(str string) (*statLine, error) {
 	idleAllTime := idle + ioWait
 	systemAllTime := system + irq + softIRQ
 	virtAllTime := guest + guestNice
-	total := userTime + niceTime + systemAllTime + idleAllTime + steal + virtAllTime
+	// total := userTime + niceTime + systemAllTime + idleAllTime + steal + virtAllTime
+	total := user + nice + system + idle + ioWait + irq + softIRQ + steal + guest + guestNice
 
 	return &statLine{
 		user,
