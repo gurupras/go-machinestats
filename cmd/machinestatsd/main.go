@@ -50,6 +50,7 @@ var (
 	defaultInterval = getEnv("STATSD_INTERVAL", "3000")
 	defaultPrefix   = getEnv("STATSD_PREFIX", "")
 
+	debug    = kingpin.Flag("debug", "Debug mode. Don't sent stats to backend").Short('D').Default("false").Bool()
 	verbose  = kingpin.Flag("verbose", "Verbose logs").Short('v').Bool()
 	allCPUs  = kingpin.Flag("all-cpus", "Log each individual CPU").Short('C').Default(defaultAllCpus).Bool()
 	address  = kingpin.Flag("statsd-address", "Statsd server address").Short('a').Default(defaultAddress).String()
@@ -73,21 +74,23 @@ func main() {
 
 	var conn *statsd.Client
 	var err error
-	for {
-		conn, err = statsd.New(
-			addr,
-			// Uncomment these once you figure out how to get Grafana to work with tags
-			// statsd.TagsFormat(statsd.Datadog),
-			// statsd.Tags("ip", ip, "alias", *prefix),
-		)
-		if err != nil {
-			log.Errorf("Failed to set up connection: %v\n", err)
-		} else {
-			break
+	if !*debug {
+		for {
+			conn, err = statsd.New(
+				addr,
+				// Uncomment these once you figure out how to get Grafana to work with tags
+				// statsd.TagsFormat(statsd.Datadog),
+				// statsd.Tags("ip", ip, "alias", *prefix),
+			)
+			if err != nil {
+				log.Errorf("Failed to set up connection: %v\n", err)
+			} else {
+				break
+			}
+			time.Sleep(1000 * time.Millisecond)
 		}
-		time.Sleep(1000 * time.Millisecond)
+		defer conn.Close()
 	}
-	defer conn.Close()
 
 	stats := []machinestats.Stat{
 		&machinestats.NetStat{},
@@ -123,9 +126,12 @@ func main() {
 			wg.Add(1)
 			go func(statInterface machinestats.Stat) {
 				defer wg.Done()
-				stat := conn.Clone(
-					statsd.Prefix(finalPrefix),
-				)
+				var stat *statsd.Client
+				if !*debug {
+					stat = conn.Clone(
+						statsd.Prefix(finalPrefix),
+					)
+				}
 				name := statInterface.Name()
 				statType := statInterface.Type()
 				// FIXME: We're feeding in proc/stat to all stat objects
@@ -134,15 +140,19 @@ func main() {
 					log.Errorf("Failed to parse stat '%v': %v\n", name, err)
 					return
 				}
-				switch statType {
-				case machinestats.Gauge:
-					stat.Gauge(name, value)
-					log.Debugf("Logged gauge '%v'\n", name)
-					break
-				case machinestats.Counter:
-					stat.Count(name, value)
-					log.Debugf("Logged counter '%v'\n", name)
-					break
+				if *debug {
+					log.Debugf("Logged stat '%v' (%0.2f)\n", name, value)
+				} else {
+					switch statType {
+					case machinestats.Gauge:
+						stat.Gauge(name, value)
+						log.Debugf("Logged gauge '%v'\n", name)
+						break
+					case machinestats.Counter:
+						stat.Count(name, value)
+						log.Debugf("Logged counter '%v'\n", name)
+						break
+					}
 				}
 			}(statInterface)
 		}
