@@ -112,7 +112,7 @@ func (c *CPULoadStat) Measure(channel chan<- Measurement) error {
 		prev := c.prevStat[idx]
 		busyness := calculateBusyness(current, prev)
 		m := &cpuBusyMeasurement{
-			idx,
+			idx - 1,
 			busyness,
 		}
 		channel <- m
