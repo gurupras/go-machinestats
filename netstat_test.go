@@ -1,30 +1,48 @@
 package machinestats
 
 import (
-	"fmt"
+	"sync"
 	"testing"
 
-	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestNetstat(t *testing.T) {
-	assert := assert.New(t)
+	require := require.New(t)
 
-	n := NetStat{}
-	count, err := n.Measure(nil)
-	assert.Nil(err)
-	assert.NotZero(count)
+	n, err := NewNetStat(nil)
+	require.Nil(err)
+
+	channel := make(chan Measurement, 1)
+	wg := sync.WaitGroup{}
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		measurement := <-channel
+		value := measurement.Value().(int)
+		require.NotZero(value)
+	}()
+	err = n.Measure(channel)
+	require.Nil(err)
+	wg.Wait()
+	close(channel)
 }
-
-var bmarkResult float64
 
 func BenchmarkNetStat(b *testing.B) {
 	// run the function b.N times
-	netstat := NetStat{}
-	fmt.Printf("\nN=%v\n", b.N)
-	var r float64
+	require := require.New(b)
+	netstat, err := NewNetStat(nil)
+	require.Nil(err)
+
+	channel := make(chan Measurement, 0)
+	count := 0
+	go func() {
+		for range channel {
+			count++
+		}
+	}()
 	for n := 0; n < b.N; n++ {
-		r, _ = netstat.Measure(nil)
+		netstat.Measure(channel)
 	}
-	bmarkResult = r
+	close(channel)
 }

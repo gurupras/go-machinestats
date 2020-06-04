@@ -1,11 +1,17 @@
 package machinestats
 
 import (
+	"fmt"
 	"io/ioutil"
-	"strings"
+	"math"
+	"os"
+	"path"
+	"sync"
 	"testing"
 
+	"github.com/prometheus/procfs"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 const sampleProcStr = `cpu  16237003 488024 7674741 943706235 1071665 0 1072139 0 0 0
@@ -30,18 +36,16 @@ cpu6 694338 21222 379024 39418809 51932 0 4390 0 0 0
 cpu7 673592 21188 336084 39495119 41442 0 4846 0 0 0
 `
 
-var busy = [][]float64{
-	[]float64{0, 0, 0, 0, 0, 0, 0, 0},
-	[]float64{
-		0.05382524966729666,
-		0.03697634856424349,
-		0.03502509951285815,
-		0.03491938385621027,
-		0.033581641578577265,
-		0.03039456296016613,
-		0.04228729035174557,
-		0.033476920260630295,
-	},
+var busy = []float64{
+	0.034000065228171235, // Overall
+	0.05382524966729666,
+	0.03697634856424349,
+	0.03502509951285815,
+	0.03491938385621027,
+	0.033581641578577265,
+	0.03039456296016613,
+	0.04228729035174557,
+	0.033476920260630295,
 }
 
 func TestReadProcStat(t *testing.T) {
@@ -50,46 +54,47 @@ func TestReadProcStat(t *testing.T) {
 
 func TestCpuLoadStat(t *testing.T) {
 	assert := assert.New(t)
+	require := require.New(t)
 
-	f, err := ioutil.TempFile("", "stat")
-	assert.Nil(err)
-	assert.NotNil(f)
-	path := f.Name()
+	dir, err := ioutil.TempDir(os.TempDir(), "test-dir")
+	require.Nil(err)
+	require.NotNil(dir)
+
+	path := path.Join(dir, "stat")
 
 	err = ioutil.WriteFile(path, []byte(sampleProcStr), 0644)
-	assert.Nil(err)
+	require.Nil(err)
 
-	ProcStatFile = path
-
-	t.Run("ReadProcStat", func(t *testing.T) {
-		lines, err := ReadProcStat()
-		assert.Nil(err)
-		expectedLines := strings.Split(sampleProcStr, "\n")
-		assert.Equal(len(expectedLines), len(lines))
-		for idx, got := range lines {
-			assert.Equal(expectedLines[idx], got)
-		}
-	})
+	fs, err := procfs.NewFS(dir)
+	require.Nil(err)
 
 	t.Run("Individual CPU loads", func(t *testing.T) {
 		ncpus := 8
-		cpuLoadStats := make([]*CPULoadStat, 0)
-		for idx := 0; idx < ncpus; idx++ {
-			c := NewCPULoadStat(idx)
-			cpuLoadStats = append(cpuLoadStats, c)
-		}
-		entries := [][]string{
-			strings.Split(sampleProcStr, "\n"),
-			strings.Split(sampleProcStr2, "\n"),
-		}
-		for idx, entry := range entries {
-			result := make([]float64, 0)
-			for _, c := range cpuLoadStats {
-				busyness, err := c.Measure(entry)
-				assert.Nil(err)
-				result = append(result, busyness)
+
+		cpuLoadStat, err := NewCPULoadStat(&fs)
+		require.Nil(err)
+		require.NotNil(cpuLoadStat)
+
+		channel := make(chan Measurement, 0)
+
+		wg := sync.WaitGroup{}
+		wg.Add(ncpus + 1)
+		go func() {
+			for idx := 0; idx < ncpus+1; idx++ {
+				measurement := <-channel
+				name := measurement.Name()
+				value := measurement.Value().(float64)
+				diff := math.Abs(busy[idx] - value)
+				assert.True(diff < 1e-7, fmt.Sprintf("[%v]: diff was: %v", name, diff))
+				wg.Done()
 			}
-			assert.EqualValues(busy[idx], result)
-		}
+		}()
+		cpuLoadStat.Measure(channel)
+		// Now, write the new values into the file
+		err = ioutil.WriteFile(path, []byte(sampleProcStr2), 0644)
+		require.Nil(err)
+		cpuLoadStat.Measure(channel)
+		wg.Wait()
+		close(channel)
 	})
 }

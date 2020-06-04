@@ -13,6 +13,12 @@ const (
 // Stat is an abstract interface that is used to get some measurement
 type Stat interface {
 	Name() string
+	Measure(chan<- Measurement) error
+}
+
+// Measurement represents a measurement
+type Measurement interface {
+	Name() string
 	Type() StatType
-	Measure(input interface{}) (float64, error)
+	Value() interface{}
 }

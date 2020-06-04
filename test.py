@@ -35,12 +35,12 @@ results = []
 for entry in data:
     lines = [x for x in entry.split('\n') if x.strip() != '']
     result = OrderedDict()
-    for line in lines[1:]:
+    for line in lines:
         tokens = [x for x in line.split(' ') if x != '']
         label = tokens[0]
         if not label.startswith('cpu'):
             continue
-        user, nice, system, idle, ioWait, irq, softIRQ, steal, guest, guestNice = [int(x) for x in tokens[1:]]
+        user, nice, system, idle, ioWait, irq, softIRQ, steal, guest, guestNice = [int(x) / float(100) for x in tokens[1:]]
         # There is some double-counting here
         userTime = user - guest
         niceTime = nice - guestNice
@@ -65,6 +65,6 @@ for entry in data:
         busy = float(deltaTotal - deltaIdle) / float(deltaTotal)
         result[label] = busy
     if len(result) > 0:
-        results.append(result)
+        results.append(result.values())
 
 print json.dumps(results, indent=2)

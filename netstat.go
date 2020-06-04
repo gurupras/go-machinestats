@@ -1,59 +1,60 @@
 package machinestats
 
-import "github.com/cakturk/go-netstat/netstat"
+import (
+	"github.com/prometheus/procfs"
+)
 
 // NetStat measures the network statistics
 type NetStat struct {
+	fs *procfs.FS
 }
 
-func measureTCP() (int, error) {
-	tabs, err := netstat.TCPSocks(netstat.NoopFilter)
-	if err != nil {
-		return -1, err
-	}
-	return len(tabs), nil
+type netStatMeasurement struct {
+	protocol string
+	value    int
 }
 
-func measureUDP() (int, error) {
-	tabs, err := netstat.UDPSocks(netstat.NoopFilter)
-	if err != nil {
-		return -1, err
+// NewNetStat returns a network statistics measurer
+func NewNetStat(fs *procfs.FS) (*NetStat, error) {
+	if fs == nil {
+		newFS, err := procfs.NewFS("/proc")
+		if err != nil {
+			return nil, err
+		}
+		fs = &newFS
 	}
-	return len(tabs), nil
+	return &NetStat{fs}, nil
 }
 
-// MeasureConnections returns the number of open sockets
-func MeasureConnections() (int64, error) {
-	count := int64(0)
-	tcpCount, err := measureTCP()
-	if err != nil {
-		return -1, nil
-	}
-	count += int64(tcpCount)
-
-	udpCount, err := measureUDP()
-	if err != nil {
-		return -1, nil
-	}
-	count += int64(udpCount)
-	return count, nil
+// Name of this stat
+func (n *NetStat) Name() string {
+	return "net-stat"
 }
 
 // Name of the stat
-func (n *NetStat) Name() string {
-	return "connections"
+func (n *netStatMeasurement) Name() string {
+	return n.protocol
 }
 
 // Type of stat
-func (n *NetStat) Type() StatType {
+func (n *netStatMeasurement) Type() StatType {
 	return Gauge
 }
 
+func (n *netStatMeasurement) Value() interface{} {
+	return n.value
+}
+
 // Measure returns the number of open sockets
-func (n *NetStat) Measure(input interface{}) (float64, error) {
-	count, err := MeasureConnections()
+func (n *NetStat) Measure(channel chan<- Measurement) error {
+	sockstat, err := n.fs.NetSockstat()
 	if err != nil {
-		return -1, err
+		return err
 	}
-	return float64(count), nil
+	// First, send total
+	channel <- &netStatMeasurement{
+		"connections",
+		*sockstat.Used,
+	}
+	return nil
 }

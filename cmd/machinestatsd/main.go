@@ -5,7 +5,6 @@ import (
 	"os"
 	"runtime"
 	"strings"
-	"sync"
 	"time"
 
 	kingpin "gopkg.in/alecthomas/kingpin.v2"
@@ -59,6 +58,20 @@ var (
 	prefixIP = kingpin.Flag("prefix-ip", "Add IP address as part of prefix").Default("false").Bool()
 )
 
+func asFloat64(input interface{}) float64 {
+	switch val := input.(type) {
+	case float64:
+		return val
+	case int:
+		return float64(val)
+	case int64:
+		return float64(val)
+	case uint64:
+		return float64(val)
+	}
+	return 0
+}
+
 func main() {
 	kingpin.Parse()
 	if *verbose {
@@ -92,18 +105,18 @@ func main() {
 		defer conn.Close()
 	}
 
-	stats := []machinestats.Stat{
-		&machinestats.NetStat{},
-		// The overall CPU usage line in /proc/stat is in line #0. Subsequent lines represent CPUs 0, 1, 2, ...
-		// Thus, we use cpu-load.-1 to depict the overall CPU utilization
-		machinestats.NewCPULoadStat(-1),
+	netstat, err := machinestats.NewNetStat(nil)
+	if err != nil {
+		log.Fatalf("Failed to create netstat: %v\n", err)
+	}
+	cpustat, err := machinestats.NewCPULoadStat(nil)
+	if err != nil {
+		log.Fatalf("Failed to create cpustat: %v\n", err)
 	}
 
-	if *allCPUs {
-		for idx := 0; idx < runtime.NumCPU(); idx++ {
-			cpuLoadStat := machinestats.NewCPULoadStat(idx)
-			stats = append(stats, cpuLoadStat)
-		}
+	stats := []machinestats.Stat{
+		netstat,
+		cpustat,
 	}
 
 	prefixArr := make([]string, 0)
@@ -115,52 +128,43 @@ func main() {
 	}
 	finalPrefix := strings.Join(prefixArr, ".")
 
-	publishStats := func() {
-		procStatLines, err := machinestats.ReadProcStat()
-		if err != nil {
-			log.Errorf("Failed to read /proc/stat: %v\n", err)
-			return
+	channel := make(chan machinestats.Measurement, 0)
+	go func() {
+		var stat *statsd.Client
+		for measurement := range channel {
+			if !*debug {
+				stat = conn.Clone(
+					statsd.Prefix(finalPrefix),
+				)
+			}
+			name := measurement.Name()
+			statType := measurement.Type()
+			value := measurement.Value()
+			if *debug {
+				log.Debugf("Logged stat '%v' (%0.2f)\n", name, asFloat64(value))
+				continue
+			}
+			switch statType {
+			case machinestats.Gauge:
+				stat.Gauge(name, value)
+				log.Debugf("Logged gauge '%v'\n", name)
+				break
+			case machinestats.Counter:
+				stat.Count(name, value)
+				log.Debugf("Logged counter '%v'\n", name)
+				break
+			}
 		}
-		wg := sync.WaitGroup{}
-		for _, statInterface := range stats {
-			wg.Add(1)
-			go func(statInterface machinestats.Stat) {
-				defer wg.Done()
-				var stat *statsd.Client
-				if !*debug {
-					stat = conn.Clone(
-						statsd.Prefix(finalPrefix),
-					)
-				}
-				name := statInterface.Name()
-				statType := statInterface.Type()
-				// FIXME: We're feeding in proc/stat to all stat objects
-				value, err := statInterface.Measure(procStatLines)
-				if err != nil {
-					log.Errorf("Failed to parse stat '%v': %v\n", name, err)
-					return
-				}
-				if *debug {
-					log.Debugf("Logged stat '%v' (%0.2f)\n", name, value)
-				} else {
-					switch statType {
-					case machinestats.Gauge:
-						stat.Gauge(name, value)
-						log.Debugf("Logged gauge '%v'\n", name)
-						break
-					case machinestats.Counter:
-						stat.Count(name, value)
-						log.Debugf("Logged counter '%v'\n", name)
-						break
-					}
-				}
-			}(statInterface)
-		}
-		wg.Wait()
-	}
+	}()
 
 	for {
-		publishStats()
+		for _, stat := range stats {
+			err := stat.Measure(channel)
+			if err != nil {
+				log.Errorf("Failed to parse stat '%v': %v\n", stat.Name(), err)
+				return
+			}
+		}
 		time.Sleep(time.Duration(*interval) * time.Millisecond)
 	}
 }

@@ -2,179 +2,121 @@ package machinestats
 
 import (
 	"fmt"
-	"io/ioutil"
-	"strconv"
-	"strings"
+
+	"github.com/prometheus/procfs"
 )
 
-// ProcStatFile represents the path to the stat file. This is overridden for testing purposes
-var ProcStatFile = "/proc/stat"
+var procFS *procfs.FS
 
-type statLine struct {
-	user          int64
-	nice          int64
-	system        int64
-	idle          int64
-	ioWait        int64
-	irq           int64
-	softIRQ       int64
-	steal         int64
-	guest         int64
-	guestNice     int64
-	userTime      int64
-	niceTime      int64
-	idleAllTime   int64
-	systemAllTime int64
-	virtAllTime   int64
-	totalAllTime  int64
+// CPUStat represents a CPU's /proc/stat entry
+type CPUStat struct {
+	*procfs.CPUStat
+	total float64
+	idle  float64
 }
 
-func (s *statLine) total() int64 {
-	user := s.user - s.guest
-	nice := s.nice - s.guestNice
-	idle := s.idle + s.ioWait
-	system := s.system + s.irq + s.softIRQ
-	virt := s.guest + s.guestNice
-	total := user + nice + system + idle + s.steal + virt
+func newCPUStat(s *procfs.CPUStat) *CPUStat {
+	ret := &CPUStat{s, 0, 0}
+	ret.total = ret.computeTotalCPUTime()
+	ret.idle = ret.computeIdleTime()
+	return ret
+}
+
+func (s *CPUStat) computeTotalCPUTime() float64 {
+	user := s.User - s.Guest
+	nice := s.Nice - s.GuestNice
+	idle := s.Idle + s.Iowait
+	system := s.System + s.IRQ + s.SoftIRQ
+	virt := s.Guest + s.GuestNice
+	total := user + nice + system + idle + s.Steal + virt
 	return total
 }
 
-func (s *statLine) getActiveTime() int64 {
-	return s.user + s.nice + s.system + s.irq + s.softIRQ + s.steal + s.guest + s.guestNice
+func (s *CPUStat) computeIdleTime() float64 {
+	return s.Idle + s.Iowait
 }
 
-func (s *statLine) getIdleTime() int64 {
-	return s.idle + s.ioWait
-}
-
-func calculateBusyness(now, old *statLine) float64 {
-	active := now.getActiveTime() - old.getActiveTime()
-	idle := now.getIdleTime() - old.getIdleTime()
-	total := active + idle
-	return float64(active) / float64(total)
-}
-
-// processCPUStatLine processes a stat line from /proc/stat corresponding to a CPU
-func processCPUStatLine(str string) (*statLine, error) {
-	// Replace all double-spaces with single space
-	str = strings.ReplaceAll(str, "  ", " ")
-	tokens := strings.Split(str, " ")
-	user, err := strconv.ParseInt(tokens[1], 10, 64)
-	if err != nil {
-		return nil, err
-	}
-	nice, err := strconv.ParseInt(tokens[2], 10, 64)
-	if err != nil {
-		return nil, err
-	}
-	system, err := strconv.ParseInt(tokens[3], 10, 64)
-	if err != nil {
-		return nil, err
-	}
-	idle, err := strconv.ParseInt(tokens[4], 10, 64)
-	if err != nil {
-		return nil, err
-	}
-	ioWait, err := strconv.ParseInt(tokens[5], 10, 64)
-	if err != nil {
-		return nil, err
-	}
-	irq, err := strconv.ParseInt(tokens[6], 10, 64)
-	if err != nil {
-		return nil, err
-	}
-	softIRQ, err := strconv.ParseInt(tokens[7], 10, 64)
-	if err != nil {
-		return nil, err
-	}
-	steal, err := strconv.ParseInt(tokens[8], 10, 64)
-	if err != nil {
-		return nil, err
-	}
-	guest, err := strconv.ParseInt(tokens[9], 10, 64)
-	if err != nil {
-		return nil, err
-	}
-	guestNice, err := strconv.ParseInt(tokens[10], 10, 64)
-	if err != nil {
-		return nil, err
-	}
-
-	userTime := user - guest
-	niceTime := nice - guestNice
-	idleAllTime := idle + ioWait
-	systemAllTime := system + irq + softIRQ
-	virtAllTime := guest + guestNice
-	// total := userTime + niceTime + systemAllTime + idleAllTime + steal + virtAllTime
-	total := user + nice + system + idle + ioWait + irq + softIRQ + steal + guest + guestNice
-
-	return &statLine{
-		user,
-		nice,
-		system,
-		idle,
-		ioWait,
-		irq,
-		softIRQ,
-		steal,
-		guest,
-		guestNice,
-		userTime,
-		niceTime,
-		idleAllTime,
-		systemAllTime,
-		virtAllTime,
-		total,
-	}, nil
+func calculateBusyness(now, old *CPUStat) float64 {
+	idle := now.idle - old.idle
+	total := now.total - old.total
+	active := total - idle
+	return active / total
 }
 
 // CPULoadStat measures and tracks the CPU load
 type CPULoadStat struct {
-	// CPU represented by this struct
-	CPU  int
-	prev *statLine
+	prevStat []*CPUStat
+	fs       *procfs.FS
 }
 
 // NewCPULoadStat creates a CPULoadStat for the given CPU
-func NewCPULoadStat(cpu int) *CPULoadStat {
+func NewCPULoadStat(fs *procfs.FS) (*CPULoadStat, error) {
+	if fs == nil {
+		if procFS == nil {
+			_procfs, err := procfs.NewFS("/proc")
+			if err != nil {
+				return nil, err
+			}
+			procFS = &_procfs
+		}
+		fs = procFS
+	}
 	return &CPULoadStat{
-		cpu,
 		nil,
-	}
+		fs,
+	}, nil
 }
 
-// ReadProcStat reads /proc/stat and returns the contents as a string
-func ReadProcStat() ([]string, error) {
-	b, err := ioutil.ReadFile(ProcStatFile)
-	if err != nil {
-		return nil, err
-	}
-	str := string(b)
-	return strings.Split(str, "\n"), nil
+type cpuBusyMeasurement struct {
+	cpu      int
+	busyness float64
 }
 
-// Name of the stat
-func (c *CPULoadStat) Name() string {
-	return fmt.Sprintf("cpu-load.%02d", c.CPU)
+// Name of the measurement
+func (c *cpuBusyMeasurement) Name() string {
+	return fmt.Sprintf("cpu-load.%02d", c.cpu)
 }
 
 // Type of stat
-func (c *CPULoadStat) Type() StatType {
+func (c *cpuBusyMeasurement) Type() StatType {
 	return Gauge
 }
 
+func (c *cpuBusyMeasurement) Value() interface{} {
+	return c.busyness
+}
+
+// Name of this stat
+func (c *CPULoadStat) Name() string {
+	return "cpu-load-stat"
+}
+
 // Measure the CPU load
-func (c *CPULoadStat) Measure(input interface{}) (float64, error) {
-	lines := input.([]string)
-	cpuLine := lines[c.CPU+1] // Line-0 is aggregated stats
-	statLine, err := processCPUStatLine(cpuLine)
+func (c *CPULoadStat) Measure(channel chan<- Measurement) error {
+	stat, err := c.fs.Stat()
 	if err != nil {
-		return 0, err
+		return err
 	}
-	if c.prev == nil {
-		c.prev = statLine
-		return 0, nil
+	cpuStatArray := make([]*CPUStat, len(stat.CPU)+1) // + 1 for the total
+	cpuStatArray[0] = newCPUStat(&stat.CPUTotal)
+	for idx, entry := range stat.CPU {
+		cpuStatArray[idx+1] = newCPUStat(&entry)
 	}
-	busyness := calculateBusyness(statLine, c.prev)
-	return busyness, nil
+
+	if c.prevStat == nil {
+		c.prevStat = cpuStatArray
+		return nil
+	}
+
+	for idx, current := range cpuStatArray {
+		prev := c.prevStat[idx]
+		busyness := calculateBusyness(current, prev)
+		m := &cpuBusyMeasurement{
+			idx,
+			busyness,
+		}
+		channel <- m
+	}
+	c.prevStat = cpuStatArray
+	return nil
 }
