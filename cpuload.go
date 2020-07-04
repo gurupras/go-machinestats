@@ -6,8 +6,6 @@ import (
 	"github.com/prometheus/procfs"
 )
 
-var procFS *procfs.FS
-
 // CPUStat represents a CPU's /proc/stat entry
 type CPUStat struct {
 	*procfs.CPUStat
@@ -51,14 +49,10 @@ type CPULoadStat struct {
 
 // NewCPULoadStat creates a CPULoadStat for the given CPU
 func NewCPULoadStat(fs *procfs.FS) (*CPULoadStat, error) {
+	if err := setupProcFS(); err != nil {
+		return nil, err
+	}
 	if fs == nil {
-		if procFS == nil {
-			_procfs, err := procfs.NewFS("/proc")
-			if err != nil {
-				return nil, err
-			}
-			procFS = &_procfs
-		}
 		fs = procFS
 	}
 	return &CPULoadStat{
