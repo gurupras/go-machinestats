@@ -113,10 +113,14 @@ func main() {
 	if err != nil {
 		log.Fatalf("Failed to create cpustat: %v\n", err)
 	}
-
+	memstat, err := machinestats.NewMemLoadStat(nil)
+	if err != nil {
+		log.Fatalf("Failed to create memStat: %v\n", err)
+	}
 	stats := []machinestats.Stat{
 		netstat,
 		cpustat,
+		memstat,
 	}
 
 	prefixArr := make([]string, 0)
