@@ -31,7 +31,7 @@ func (m *MemLoadStat) Value() interface{} {
 
 // Name of stat
 func (m *MemLoadStat) Name() string {
-	return "memory-load-stat"
+	return "memory-load"
 }
 
 // Measure the current memory usage
