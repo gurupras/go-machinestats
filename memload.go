@@ -1,6 +1,9 @@
 package machinestats
 
-import "github.com/prometheus/procfs"
+import (
+	"github.com/prometheus/procfs"
+	log "github.com/sirupsen/logrus"
+)
 
 // MemLoadStat represents all the information obtained from one /proc/meminfo read
 type MemLoadStat struct {
@@ -40,8 +43,14 @@ func (m *MemLoadStat) Measure(channel chan<- Measurement) error {
 	if err != nil {
 		return err
 	}
+
 	used := meminfo.MemTotal - meminfo.MemAvailable
 	pct := (float64(used) / float64(meminfo.MemTotal)) * 100
+	log.Debugf("total:     %v", meminfo.MemTotal)
+	log.Debugf("free:      %v", meminfo.MemFree)
+	log.Debugf("used:      %v", used)
+	log.Debugf("pct:       %v%%", pct)
+	log.Debugf("meminfo: \n%v\n", meminfo)
 	m.value = pct
 	channel <- m
 	return nil
