@@ -117,10 +117,15 @@ func main() {
 	if err != nil {
 		log.Fatalf("Failed to create memStat: %v\n", err)
 	}
+	bwstat, err := machinestats.NewBandwidthStat(nil)
+	if err != nil {
+		log.Fatalf("Failed to create bandwidthStat: %v\n", err)
+	}
 	stats := []machinestats.Stat{
 		netstat,
 		cpustat,
 		memstat,
+		bwstat,
 	}
 
 	prefixArr := make([]string, 0)
