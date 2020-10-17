@@ -1,5 +1,11 @@
 package machinestats
 
+import "time"
+
+var nowFn = func() int64 {
+	return time.Now().UnixNano()
+}
+
 // StatType represents the type of stat
 type StatType int
 
