@@ -67,11 +67,11 @@ func sendBandwidthDiffs(channel chan<- Measurement, iface string, timeDelta time
 
 	bm := &bandwidthMeasurement{
 		downloadSpeed,
-		fmt.Sprintf("%v.download.mbps", iface),
+		fmt.Sprintf("network.interfaces.%v.download.mbps", iface),
 	}
 	um := &bandwidthMeasurement{
 		uploadSpeed,
-		fmt.Sprintf("%v.upload.mbps", iface),
+		fmt.Sprintf("network.interfaces.%v.upload.mbps", iface),
 	}
 	channel <- bm
 	channel <- um
