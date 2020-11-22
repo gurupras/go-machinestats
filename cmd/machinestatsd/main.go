@@ -56,6 +56,11 @@ var (
 	interval = kingpin.Flag("statsd-interval", "Interval at which stats are collected periodically. In milliseconds").Short('d').Default(defaultInterval).Int()
 	prefix   = kingpin.Flag("statsd-prefix", "Prefix with which all metrics are sent").Short('p').Default(defaultPrefix).String()
 	prefixIP = kingpin.Flag("prefix-ip", "Add IP address as part of prefix").Default("false").Bool()
+
+	enableCoturn   = kingpin.Flag("enable-coturn", "Enable stat collection from Coturn instance").Default("false").Bool()
+	coturnHost     = kingpin.Flag("coturn-host", "Coturn server host").Default("127.0.0.1").String()
+	coturnPort     = kingpin.Flag("coturn-port", "Coturn server CLI port").Default("5558").Int()
+	coturnPassword = kingpin.Flag("coturn-password", "Coturn server CLI password").String()
 )
 
 func asFloat64(input interface{}) float64 {
@@ -121,11 +126,20 @@ func main() {
 	if err != nil {
 		log.Fatalf("Failed to create bandwidthStat: %v\n", err)
 	}
+
 	stats := []machinestats.Stat{
 		netstat,
 		cpustat,
 		memstat,
 		bwstat,
+	}
+
+	if *enableCoturn {
+		coturnStat, err := machinestats.NewCoturnStat(*coturnHost, *coturnPort, *coturnPassword)
+		if err != nil {
+			log.Fatalf("Failed to create coturnStat: %v\n", err)
+		}
+		stats = append(stats, coturnStat)
 	}
 
 	prefixArr := make([]string, 0)
@@ -171,7 +185,7 @@ func main() {
 			err := stat.Measure(channel)
 			if err != nil {
 				log.Errorf("Failed to parse stat '%v': %v\n", stat.Name(), err)
-				return
+				continue
 			}
 		}
 		time.Sleep(time.Duration(*interval) * time.Millisecond)
