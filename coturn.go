@@ -13,7 +13,7 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-var totalSessionsPattern = regexp.MustCompile(`Total sessions: (?P<numSessions>\d+)`)
+var totalSessionsPattern = regexp.MustCompile(`Total sessions: (?P<numSessions>\d+)\s+`)
 
 // CoturnStat measures coturn statistics
 type CoturnStat struct {
