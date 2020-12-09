@@ -133,6 +133,7 @@ func NewCoturnStat(host string, port int, password string) (*CoturnStat, error) 
 	if err != nil {
 		return nil, err
 	}
+	defer conn.Close()
 	reader := bufio.NewReader(conn)
 	writer := bufio.NewWriter(conn)
 
