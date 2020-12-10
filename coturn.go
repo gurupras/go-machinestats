@@ -17,9 +17,11 @@ var totalSessionsPattern = regexp.MustCompile(`Total sessions: (?P<numSessions>\
 
 // CoturnStat measures coturn statistics
 type CoturnStat struct {
-	connection *net.Conn
-	reader     *bufio.Reader
-	writer     *bufio.Writer
+	host     string
+	port     int
+	password string
+	reader   *bufio.Reader
+	writer   *bufio.Writer
 }
 
 func (c *CoturnStat) waitUntil(text string, pattern *regexp.Regexp, timeout time.Duration) (string, error) {
@@ -88,22 +90,58 @@ func (c *CoturnStat) waitForCommandPrompt() error {
 	return err
 }
 
-func (c *CoturnStat) get() (uint64, error) {
+func (c *CoturnStat) login() error {
+	c.waitForPasswordPrompt()
+	log.Debugf("Received password prompt")
 	wg := sync.WaitGroup{}
-	var (
-		result string
-		err    error
-	)
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		c.waitForCommandPrompt()
+	}()
+	n, err := c.writer.WriteString(fmt.Sprintf("%v\r\n", c.password))
+	if err != nil {
+		log.Errorf("Failed to write password: %v\n", err)
+		return err
+	}
+	err = c.writer.Flush()
+	if err != nil {
+		return err
+	}
+	log.Debugf("Wrote password: (%v bytes)", n)
+	wg.Wait()
+	return nil
+}
+
+func (c *CoturnStat) get() (uint64, error) {
+	conn, err := net.Dial("tcp", fmt.Sprintf("%v:%v", c.host, c.port))
+	if err != nil {
+		return 0, err
+	}
+	defer conn.Close()
+
+	reader := bufio.NewReader(conn)
+	writer := bufio.NewWriter(conn)
+
+	c.reader = reader
+	c.writer = writer
+
+	if err = c.login(); err != nil {
+		return 0, err
+	}
+
+	wg := sync.WaitGroup{}
+	var result string
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
 		result, err = c.waitUntil("", totalSessionsPattern, time.Duration(1*time.Second))
 	}()
-	n, err := c.writer.WriteString("pu\r\n")
+	n, err := writer.WriteString("pu\r\n")
 	if err != nil {
 		log.Errorf("Failed to 'pu' command: %v\n", err)
 	}
-	if err := c.writer.Flush(); err != nil {
+	if err := writer.Flush(); err != nil {
 		return 0, err
 	}
 	log.Debugf("Wrote 'pu' command (%v bytes)", n)
@@ -129,38 +167,13 @@ type coturnStatMeasurement struct {
 
 // NewCoturnStat returns a coturn statistics measurer
 func NewCoturnStat(host string, port int, password string) (*CoturnStat, error) {
-	conn, err := net.Dial("tcp", fmt.Sprintf("%v:%v", host, port))
-	if err != nil {
-		return nil, err
-	}
-	defer conn.Close()
-	reader := bufio.NewReader(conn)
-	writer := bufio.NewWriter(conn)
-
 	stats := &CoturnStat{
-		&conn,
-		reader,
-		writer,
+		host,
+		port,
+		password,
+		nil,
+		nil,
 	}
-	stats.waitForPasswordPrompt()
-	log.Debugf("Received password prompt")
-	wg := sync.WaitGroup{}
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		stats.waitForCommandPrompt()
-	}()
-	n, err := stats.writer.WriteString(fmt.Sprintf("%v\r\n", password))
-	if err != nil {
-		log.Errorf("Failed to write password: %v\n", err)
-		return nil, err
-	}
-	err = stats.writer.Flush()
-	if err != nil {
-		return nil, err
-	}
-	log.Debugf("Wrote password: (%v bytes)", n)
-	wg.Wait()
 	return stats, nil
 }
 
