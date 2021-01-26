@@ -44,8 +44,8 @@ func (m *MemLoadStat) Measure(channel chan<- Measurement) error {
 		return err
 	}
 
-	used := meminfo.MemTotal - meminfo.MemAvailable
-	pct := (float64(used) / float64(meminfo.MemTotal)) * 100
+	used := *meminfo.MemTotal - *meminfo.MemAvailable
+	pct := (float64(used) / float64(*meminfo.MemTotal)) * 100
 	log.Debugf("total:     %v", meminfo.MemTotal)
 	log.Debugf("free:      %v", meminfo.MemFree)
 	log.Debugf("used:      %v", used)
