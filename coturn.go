@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	log "github.com/sirupsen/logrus"
@@ -25,34 +26,27 @@ type CoturnStat struct {
 }
 
 func (c *CoturnStat) waitUntil(text string, pattern *regexp.Regexp, timeout time.Duration) (string, error) {
-	satisfied := false
-	var result string
+	satisfied := int32(0)
 	var err error
 	var b byte
 	var lineBytes []byte
 
-	mutex := sync.Mutex{}
-	wg := sync.WaitGroup{}
-	wg.Add(1)
-
+	resultChan := make(chan interface{}, 1)
 	go func() {
 		time.Sleep(timeout)
-		mutex.Lock()
-		defer mutex.Unlock()
-		defer wg.Done()
-		err = fmt.Errorf("Timed out")
-		satisfied = true
+		resultChan <- fmt.Errorf("Timed out")
 	}()
 
 	go func() {
+		var result string
 		for {
 			var line string
 			b, err = c.reader.ReadByte()
 			if err != nil {
+				resultChan <- err
 				return
 			}
-			mutex.Lock()
-			if satisfied {
+			if atomic.LoadInt32(&satisfied) == 1 {
 				return
 			}
 			lineBytes = append(lineBytes, b)
@@ -63,20 +57,25 @@ func (c *CoturnStat) waitUntil(text string, pattern *regexp.Regexp, timeout time
 			if pattern != nil {
 				match := pattern.FindStringSubmatch(line)
 				if len(match) > 0 {
-					satisfied = true
 					result = line
 					break
 				}
 			} else if b == text[len(text)-1] && strings.Contains(line, text) {
-				satisfied = true
 				result = line
 				break
 			}
-			mutex.Unlock()
 		}
-		wg.Done()
+		resultChan <- result
 	}()
-	wg.Wait()
+	data := <-resultChan
+	atomic.AddInt32(&satisfied, 1)
+	var result string
+	switch v := data.(type) {
+	case string:
+		result = v
+	case error:
+		err = v
+	}
 	return result, err
 }
 
@@ -91,13 +90,17 @@ func (c *CoturnStat) waitForCommandPrompt() error {
 }
 
 func (c *CoturnStat) login() error {
-	c.waitForPasswordPrompt()
+	var err error
+	err = c.waitForPasswordPrompt()
+	if err != nil {
+		return err
+	}
 	log.Debugf("Received password prompt")
 	wg := sync.WaitGroup{}
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		c.waitForCommandPrompt()
+		err = c.waitForCommandPrompt()
 	}()
 	n, err := c.writer.WriteString(fmt.Sprintf("%v\r\n", c.password))
 	if err != nil {
@@ -110,12 +113,13 @@ func (c *CoturnStat) login() error {
 	}
 	log.Debugf("Wrote password: (%v bytes)", n)
 	wg.Wait()
-	return nil
+	return err
 }
 
 func (c *CoturnStat) get() (uint64, error) {
 	conn, err := net.Dial("tcp", fmt.Sprintf("%v:%v", c.host, c.port))
 	if err != nil {
+		log.Errorf("Failed to connect to coturn server: %v", err)
 		return 0, err
 	}
 	defer conn.Close()
@@ -127,6 +131,7 @@ func (c *CoturnStat) get() (uint64, error) {
 	c.writer = writer
 
 	if err = c.login(); err != nil {
+		log.Errorf("Failed to login: %v", err)
 		return 0, err
 	}
 
@@ -147,6 +152,7 @@ func (c *CoturnStat) get() (uint64, error) {
 	log.Debugf("Wrote 'pu' command (%v bytes)", n)
 	wg.Wait()
 	if err != nil {
+		log.Errorf("Failed to get number of sessions: %v", err)
 		return 0, err
 	}
 	match := totalSessionsPattern.FindStringSubmatch(result)
@@ -156,6 +162,7 @@ func (c *CoturnStat) get() (uint64, error) {
 	numStr := match[1]
 	numSessions, err := strconv.ParseUint(numStr, 10, 64)
 	if err != nil {
+		log.Errorf("Failed to convert string to int (%v): %v", numStr, err)
 		return 0, err
 	}
 	return numSessions, nil
