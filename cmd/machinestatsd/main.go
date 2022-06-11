@@ -43,11 +43,15 @@ func initDefaultAllCPUs(ncpu int) string {
 }
 
 var (
-	numCPUs         = runtime.NumCPU()
-	defaultAllCpus  = initDefaultAllCPUs(numCPUs)
-	defaultAddress  = getEnv("STATSD_ADDRESS", ":8125")
-	defaultInterval = getEnv("STATSD_INTERVAL", "3000")
-	defaultPrefix   = getEnv("STATSD_PREFIX", "")
+	numCPUs           = runtime.NumCPU()
+	defaultAllCpus    = initDefaultAllCPUs(numCPUs)
+	defaultAddress    = getEnv("STATSD_ADDRESS", ":8125")
+	defaultInterval   = getEnv("STATSD_INTERVAL", "3000")
+	defaultPrefix     = getEnv("STATSD_PREFIX", "")
+	defaultPrefixIP   = getEnv("MACHINESTATSD_PREFIX_IP", "false")
+	defaultCoturn     = getEnv("MACHINESTATSD_ENABLE_COTURN", "false")
+	defaultCoturnHost = getEnv("MACHINESTATSD_COTURN_HOST", "127.0.0.1")
+	defaultCoturnPort = getEnv("MACHINESTATSD_COTURN_PORT", "5558")
 
 	debug    = kingpin.Flag("debug", "Debug mode. Don't sent stats to backend").Short('D').Default("false").Bool()
 	verbose  = kingpin.Flag("verbose", "Verbose logs").Short('v').Bool()
@@ -55,11 +59,11 @@ var (
 	address  = kingpin.Flag("statsd-address", "Statsd server address").Short('a').Default(defaultAddress).String()
 	interval = kingpin.Flag("statsd-interval", "Interval at which stats are collected periodically. In milliseconds").Short('d').Default(defaultInterval).Int()
 	prefix   = kingpin.Flag("statsd-prefix", "Prefix with which all metrics are sent").Short('p').Default(defaultPrefix).String()
-	prefixIP = kingpin.Flag("prefix-ip", "Add IP address as part of prefix").Default("false").Bool()
+	prefixIP = kingpin.Flag("prefix-ip", "Add IP address as part of prefix").Default(defaultPrefixIP).Bool()
 
-	enableCoturn   = kingpin.Flag("enable-coturn", "Enable stat collection from Coturn instance").Default("false").Bool()
-	coturnHost     = kingpin.Flag("coturn-host", "Coturn server host").Default("127.0.0.1").String()
-	coturnPort     = kingpin.Flag("coturn-port", "Coturn server CLI port").Default("5558").Int()
+	enableCoturn   = kingpin.Flag("enable-coturn", "Enable stat collection from Coturn instance").Default(defaultCoturn).Bool()
+	coturnHost     = kingpin.Flag("coturn-host", "Coturn server host").Default(defaultCoturnHost).String()
+	coturnPort     = kingpin.Flag("coturn-port", "Coturn server CLI port").Default(defaultCoturnPort).Int()
 	coturnPassword = kingpin.Flag("coturn-password", "Coturn server CLI password").String()
 )
 
