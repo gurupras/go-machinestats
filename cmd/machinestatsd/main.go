@@ -44,6 +44,7 @@ func initDefaultAllCPUs(ncpu int) string {
 
 var (
 	numCPUs           = runtime.NumCPU()
+	defaultDebugMode  = getEnv("DEBUG_MODE", "false")
 	defaultAllCpus    = initDefaultAllCPUs(numCPUs)
 	defaultAddress    = getEnv("STATSD_ADDRESS", ":8125")
 	defaultInterval   = getEnv("STATSD_INTERVAL", "3000")
@@ -53,7 +54,7 @@ var (
 	defaultCoturnHost = getEnv("MACHINESTATSD_COTURN_HOST", "127.0.0.1")
 	defaultCoturnPort = getEnv("MACHINESTATSD_COTURN_PORT", "5558")
 
-	debug    = kingpin.Flag("debug", "Debug mode. Don't sent stats to backend").Short('D').Default("false").Bool()
+	debug    = kingpin.Flag("debug", "Debug mode. Don't sent stats to backend").Short('D').Default(defaultDebugMode).Bool()
 	verbose  = kingpin.Flag("verbose", "Verbose logs").Short('v').Bool()
 	allCPUs  = kingpin.Flag("all-cpus", "Log each individual CPU").Short('C').Default(defaultAllCpus).Bool()
 	address  = kingpin.Flag("statsd-address", "Statsd server address").Short('a').Default(defaultAddress).String()
