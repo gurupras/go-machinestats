@@ -53,9 +53,10 @@ var (
 	defaultCoturn     = getEnv("MACHINESTATSD_ENABLE_COTURN", "false")
 	defaultCoturnHost = getEnv("MACHINESTATSD_COTURN_HOST", "127.0.0.1")
 	defaultCoturnPort = getEnv("MACHINESTATSD_COTURN_PORT", "5558")
+	defaultVerbose    = getEnv("MACHINESTATSD_VERBOSE", "false")
 
 	debug    = kingpin.Flag("debug", "Debug mode. Don't sent stats to backend").Short('D').Default(defaultDebugMode).Bool()
-	verbose  = kingpin.Flag("verbose", "Verbose logs").Short('v').Bool()
+	verbose  = kingpin.Flag("verbose", "Verbose logs").Short('v').Default(defaultVerbose).Bool()
 	allCPUs  = kingpin.Flag("all-cpus", "Log each individual CPU").Short('C').Default(defaultAllCpus).Bool()
 	address  = kingpin.Flag("statsd-address", "Statsd server address").Short('a').Default(defaultAddress).String()
 	interval = kingpin.Flag("statsd-interval", "Interval at which stats are collected periodically. In milliseconds").Short('d').Default(defaultInterval).Int()
