@@ -44,7 +44,7 @@ func initDefaultAllCPUs(ncpu int) string {
 
 var (
 	numCPUs           = runtime.NumCPU()
-	defaultDebugMode  = getEnv("DEBUG_MODE", "false")
+	defaultDebugMode  = getEnv("MACHINESTATSD_DEBUG", "false")
 	defaultAllCpus    = initDefaultAllCPUs(numCPUs)
 	defaultAddress    = getEnv("STATSD_ADDRESS", ":8125")
 	defaultInterval   = getEnv("STATSD_INTERVAL", "3000")
