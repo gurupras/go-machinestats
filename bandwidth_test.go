@@ -72,7 +72,8 @@ func TestBandwidthStat(t *testing.T) {
 	go func() {
 		for idx := 0; idx < numMeasurements; idx++ {
 			data := <-channel
-			name := data.Name()
+			// Strip initial network.interfaces. part
+			name := strings.Replace(data.Name(), "network.interfaces.", "", 1)
 			got := data.Value().(float64)
 			log.Debugf("Got measurement: %v - %v\n", name, got)
 			expected := expectedResults[name]
