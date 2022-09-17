@@ -11,6 +11,7 @@ import (
 
 	machinestats "github.com/gurupras/go-machinestats"
 	"github.com/gurupras/statsd"
+	"github.com/prometheus/procfs"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -54,14 +55,16 @@ var (
 	defaultCoturnHost = getEnv("MACHINESTATSD_COTURN_HOST", "127.0.0.1")
 	defaultCoturnPort = getEnv("MACHINESTATSD_COTURN_PORT", "5558")
 	defaultVerbose    = getEnv("MACHINESTATSD_VERBOSE", "false")
+	defaultProcFSPath = getEnv("MACHINESTATSD_PROCFS_PATH", "/proc")
 
-	debug    = kingpin.Flag("debug", "Debug mode. Don't sent stats to backend").Short('D').Default(defaultDebugMode).Bool()
-	verbose  = kingpin.Flag("verbose", "Verbose logs").Short('v').Default(defaultVerbose).Bool()
-	allCPUs  = kingpin.Flag("all-cpus", "Log each individual CPU").Short('C').Default(defaultAllCpus).Bool()
-	address  = kingpin.Flag("statsd-address", "Statsd server address").Short('a').Default(defaultAddress).String()
-	interval = kingpin.Flag("statsd-interval", "Interval at which stats are collected periodically. In milliseconds").Short('d').Default(defaultInterval).Int()
-	prefix   = kingpin.Flag("statsd-prefix", "Prefix with which all metrics are sent").Short('p').Default(defaultPrefix).String()
-	prefixIP = kingpin.Flag("prefix-ip", "Add IP address as part of prefix").Default(defaultPrefixIP).Bool()
+	debug      = kingpin.Flag("debug", "Debug mode. Don't sent stats to backend").Short('D').Default(defaultDebugMode).Bool()
+	verbose    = kingpin.Flag("verbose", "Verbose logs").Short('v').Default(defaultVerbose).Bool()
+	allCPUs    = kingpin.Flag("all-cpus", "Log each individual CPU").Short('C').Default(defaultAllCpus).Bool()
+	address    = kingpin.Flag("statsd-address", "Statsd server address").Short('a').Default(defaultAddress).String()
+	interval   = kingpin.Flag("statsd-interval", "Interval at which stats are collected periodically. In milliseconds").Short('d').Default(defaultInterval).Int()
+	prefix     = kingpin.Flag("statsd-prefix", "Prefix with which all metrics are sent").Short('p').Default(defaultPrefix).String()
+	prefixIP   = kingpin.Flag("prefix-ip", "Add IP address as part of prefix").Default(defaultPrefixIP).Bool()
+	procFSPath = kingpin.Flag("procfs", "Path to procfs").Default(defaultProcFSPath).String()
 
 	enableCoturn   = kingpin.Flag("enable-coturn", "Enable stat collection from Coturn instance").Default(defaultCoturn).Bool()
 	coturnHost     = kingpin.Flag("coturn-host", "Coturn server host").Default(defaultCoturnHost).String()
@@ -116,19 +119,21 @@ func main() {
 		defer conn.Close()
 	}
 
-	netstat, err := machinestats.NewNetStat(nil)
+	fs, _ := procfs.NewFS(*procFSPath)
+
+	netstat, err := machinestats.NewNetStat(&fs)
 	if err != nil {
 		log.Fatalf("Failed to create netstat: %v\n", err)
 	}
-	cpustat, err := machinestats.NewCPULoadStat(nil)
+	cpustat, err := machinestats.NewCPULoadStat(&fs)
 	if err != nil {
 		log.Fatalf("Failed to create cpustat: %v\n", err)
 	}
-	memstat, err := machinestats.NewMemLoadStat(nil)
+	memstat, err := machinestats.NewMemLoadStat(&fs)
 	if err != nil {
 		log.Fatalf("Failed to create memStat: %v\n", err)
 	}
-	bwstat, err := machinestats.NewBandwidthStat(nil)
+	bwstat, err := machinestats.NewBandwidthStat(&fs)
 	if err != nil {
 		log.Fatalf("Failed to create bandwidthStat: %v\n", err)
 	}
