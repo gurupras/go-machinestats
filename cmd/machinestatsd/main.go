@@ -51,7 +51,7 @@ var (
 	defaultInterval       = getEnv("STATSD_INTERVAL", "3000")
 	defaultPrefix         = getEnv("STATSD_PREFIX", "")
 	defaultPrefixIP       = getEnv("MACHINESTATSD_PREFIX_IP", "false")
-	defaultCoturn         = getEnv("MACHINESTATSD_ENABLE_COTURN", "false")
+	defaultCoturn         = getEnv("MACHINESTATSD_COTURN_ENABLE", "false")
 	defaultCoturnHost     = getEnv("MACHINESTATSD_COTURN_HOST", "127.0.0.1")
 	defaultCoturnPort     = getEnv("MACHINESTATSD_COTURN_PORT", "5558")
 	defaultCoturnPassword = getEnv("MACHINESTATSD_COTURN_PASSWORD", "")
