@@ -44,18 +44,19 @@ func initDefaultAllCPUs(ncpu int) string {
 }
 
 var (
-	numCPUs           = runtime.NumCPU()
-	defaultDebugMode  = getEnv("MACHINESTATSD_DEBUG", "false")
-	defaultAllCpus    = initDefaultAllCPUs(numCPUs)
-	defaultAddress    = getEnv("STATSD_ADDRESS", ":8125")
-	defaultInterval   = getEnv("STATSD_INTERVAL", "3000")
-	defaultPrefix     = getEnv("STATSD_PREFIX", "")
-	defaultPrefixIP   = getEnv("MACHINESTATSD_PREFIX_IP", "false")
-	defaultCoturn     = getEnv("MACHINESTATSD_ENABLE_COTURN", "false")
-	defaultCoturnHost = getEnv("MACHINESTATSD_COTURN_HOST", "127.0.0.1")
-	defaultCoturnPort = getEnv("MACHINESTATSD_COTURN_PORT", "5558")
-	defaultVerbose    = getEnv("MACHINESTATSD_VERBOSE", "false")
-	defaultProcFSPath = getEnv("MACHINESTATSD_PROCFS_PATH", "/proc")
+	numCPUs               = runtime.NumCPU()
+	defaultDebugMode      = getEnv("MACHINESTATSD_DEBUG", "false")
+	defaultAllCpus        = initDefaultAllCPUs(numCPUs)
+	defaultAddress        = getEnv("STATSD_ADDRESS", ":8125")
+	defaultInterval       = getEnv("STATSD_INTERVAL", "3000")
+	defaultPrefix         = getEnv("STATSD_PREFIX", "")
+	defaultPrefixIP       = getEnv("MACHINESTATSD_PREFIX_IP", "false")
+	defaultCoturn         = getEnv("MACHINESTATSD_ENABLE_COTURN", "false")
+	defaultCoturnHost     = getEnv("MACHINESTATSD_COTURN_HOST", "127.0.0.1")
+	defaultCoturnPort     = getEnv("MACHINESTATSD_COTURN_PORT", "5558")
+	defaultCoturnPassword = getEnv("MACHINESTATSD_COTURN_PASSWORD", "")
+	defaultVerbose        = getEnv("MACHINESTATSD_VERBOSE", "false")
+	defaultProcFSPath     = getEnv("MACHINESTATSD_PROCFS_PATH", "/proc")
 
 	debug      = kingpin.Flag("debug", "Debug mode. Don't sent stats to backend").Short('D').Default(defaultDebugMode).Bool()
 	verbose    = kingpin.Flag("verbose", "Verbose logs").Short('v').Default(defaultVerbose).Bool()
@@ -69,7 +70,7 @@ var (
 	enableCoturn   = kingpin.Flag("enable-coturn", "Enable stat collection from Coturn instance").Default(defaultCoturn).Bool()
 	coturnHost     = kingpin.Flag("coturn-host", "Coturn server host").Default(defaultCoturnHost).String()
 	coturnPort     = kingpin.Flag("coturn-port", "Coturn server CLI port").Default(defaultCoturnPort).Int()
-	coturnPassword = kingpin.Flag("coturn-password", "Coturn server CLI password").String()
+	coturnPassword = kingpin.Flag("coturn-password", "Coturn server CLI password").Default(defaultCoturnPassword).String()
 )
 
 func asFloat64(input interface{}) float64 {
