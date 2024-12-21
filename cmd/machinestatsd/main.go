@@ -206,16 +206,22 @@ func main() {
 	}
 	defer stop()
 
-	var lastMeasurementTimeMillis int64
+	var lastMeasurementTimeNanos int64
 	var lastMeasurements map[string]interface{}
 	mutex := sync.Mutex{}
 
 	mux.HandleFunc("/stats", func(w http.ResponseWriter, r *http.Request) {
 		mutex.Lock()
 		defer mutex.Unlock()
+		now := time.Now().UnixNano()
+		var measurements map[string]interface{}
+		if time.Duration(time.Duration(now-lastMeasurementTimeNanos).Milliseconds()) <= 2*time.Duration(*interval)*time.Millisecond {
+			// We have recent stats
+			measurements = lastMeasurements
+		}
 		m := map[string]interface{}{
-			"timestamp": lastMeasurementTimeMillis,
-			"data":      lastMeasurements,
+			"timestamp": time.Duration(lastMeasurementTimeNanos).Milliseconds(),
+			"data":      measurements,
 		}
 		b, _ := json.Marshal(m)
 		w.Write(b)
@@ -246,7 +252,7 @@ func main() {
 				close(localChan)
 				wg.Wait()
 			}
-			lastMeasurementTimeMillis = time.Now().UnixMilli()
+			lastMeasurementTimeNanos = time.Now().UnixNano()
 		}()
 		time.Sleep(time.Duration(*interval) * time.Millisecond)
 	}
