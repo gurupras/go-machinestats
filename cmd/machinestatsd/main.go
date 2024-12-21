@@ -1,10 +1,14 @@
 package main
 
 import (
+	"encoding/json"
+	"fmt"
 	"net"
+	"net/http"
 	"os"
 	"runtime"
 	"strings"
+	"sync"
 	"time"
 
 	kingpin "gopkg.in/alecthomas/kingpin.v2"
@@ -57,6 +61,7 @@ var (
 	defaultCoturnPassword = getEnv("MACHINESTATSD_COTURN_PASSWORD", "")
 	defaultVerbose        = getEnv("MACHINESTATSD_VERBOSE", "false")
 	defaultProcFSPath     = getEnv("MACHINESTATSD_PROCFS_PATH", "/proc")
+	defaultServerPort     = getEnv("MACHINESTATSD_SERVER_PORT", "80")
 
 	debug      = kingpin.Flag("debug", "Debug mode. Don't sent stats to backend").Short('D').Default(defaultDebugMode).Bool()
 	verbose    = kingpin.Flag("verbose", "Verbose logs").Short('v').Default(defaultVerbose).Bool()
@@ -66,6 +71,7 @@ var (
 	prefix     = kingpin.Flag("statsd-prefix", "Prefix with which all metrics are sent").Short('p').Default(defaultPrefix).String()
 	prefixIP   = kingpin.Flag("prefix-ip", "Add IP address as part of prefix").Default(defaultPrefixIP).Bool()
 	procFSPath = kingpin.Flag("procfs", "Path to procfs").Default(defaultProcFSPath).String()
+	serverPort = kingpin.Flag("server-port", "HTTP server port").Short('p').Default(defaultServerPort).Int()
 
 	enableCoturn   = kingpin.Flag("enable-coturn", "Enable stat collection from Coturn instance").Default(defaultCoturn).Bool()
 	coturnHost     = kingpin.Flag("coturn-host", "Coturn server host").Default(defaultCoturnHost).String()
@@ -192,14 +198,56 @@ func main() {
 		}
 	}()
 
-	for {
-		for _, stat := range stats {
-			err := stat.Measure(channel)
-			if err != nil {
-				log.Errorf("Failed to parse stat '%v': %v\n", stat.Name(), err)
-				continue
-			}
+	mux, stop, err := machinestats.StartHTTPServer(*serverPort)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to start HTTP server: %v\n", err)
+		os.Exit(-1)
+		return
+	}
+	defer stop()
+
+	var lastMeasurementTimeMillis int64
+	var lastMeasurements map[string]interface{}
+	mutex := sync.Mutex{}
+
+	mux.HandleFunc("/stats", func(w http.ResponseWriter, r *http.Request) {
+		mutex.Lock()
+		defer mutex.Unlock()
+		m := map[string]interface{}{
+			"timestamp": lastMeasurementTimeMillis,
+			"data":      lastMeasurements,
 		}
+		b, _ := json.Marshal(m)
+		w.Write(b)
+	})
+
+	for {
+		func() {
+			mutex.Lock()
+			defer mutex.Unlock()
+			lastMeasurements = make(map[string]interface{})
+			for _, stat := range stats {
+				// Make a copy of all measurements so we can track last measurements and write it all to channel
+				localChan := make(chan machinestats.Measurement)
+				wg := sync.WaitGroup{}
+				wg.Add(1)
+				go func() {
+					defer wg.Done()
+					for m := range localChan {
+						lastMeasurements[m.Name()] = m.Value()
+						channel <- m
+					}
+				}()
+				err := stat.Measure(localChan)
+				if err != nil {
+					log.Errorf("Failed to parse stat '%v': %v\n", stat.Name(), err)
+					continue
+				}
+				close(localChan)
+				wg.Wait()
+			}
+			lastMeasurementTimeMillis = time.Now().UnixMilli()
+		}()
 		time.Sleep(time.Duration(*interval) * time.Millisecond)
 	}
 }
