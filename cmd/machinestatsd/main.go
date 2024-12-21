@@ -61,7 +61,7 @@ var (
 	defaultCoturnPassword = getEnv("MACHINESTATSD_COTURN_PASSWORD", "")
 	defaultVerbose        = getEnv("MACHINESTATSD_VERBOSE", "false")
 	defaultProcFSPath     = getEnv("MACHINESTATSD_PROCFS_PATH", "/proc")
-	defaultServerPort     = getEnv("MACHINESTATSD_SERVER_PORT", "80")
+	defaultServerPort     = getEnv("MACHINESTATSD_SERVER_PORT", "1122")
 
 	debug      = kingpin.Flag("debug", "Debug mode. Don't sent stats to backend").Short('D').Default(defaultDebugMode).Bool()
 	verbose    = kingpin.Flag("verbose", "Verbose logs").Short('v').Default(defaultVerbose).Bool()
