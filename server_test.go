@@ -14,7 +14,7 @@ func TestStartHTTPServer(t *testing.T) {
 	port := 8081 // Choose a port that is likely to be available
 
 	// Start the server
-	mux, stop, err := StartHTTPServer(port)
+	mux, stop, err := StartHTTPServer("", port)
 	require.NoError(t, err, "Expected no error when starting the server")
 	require.NotNil(t, mux, "Expected a valid ServeMux")
 	require.NotNil(t, stop, "Expected a valid stop function")
@@ -41,11 +41,11 @@ func TestStartHTTPServer_PortInUse(t *testing.T) {
 	port := 8082 // Choose a port that is likely to be available
 
 	// Start the first server
-	_, stop1, err := StartHTTPServer(port)
+	_, stop1, err := StartHTTPServer("", port)
 	require.NoError(t, err, "Expected no error when starting the first server")
 	defer stop1()
 
 	// Attempt to start a second server on the same port
-	_, _, err = StartHTTPServer(port)
+	_, _, err = StartHTTPServer("", port)
 	assert.Error(t, err, "Expected an error when starting a second server on the same port")
 }

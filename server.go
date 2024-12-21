@@ -9,14 +9,14 @@ import (
 )
 
 // StartHTTPServer starts an HTTP server on the specified port and returns a stop function.
-func StartHTTPServer(port int) (mux *http.ServeMux, stop func() error, err error) {
+func StartHTTPServer(ip string, port int) (mux *http.ServeMux, stop func() error, err error) {
 	mux = http.NewServeMux()
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintln(w, "OK")
 	})
 
 	server := &http.Server{
-		Addr:    fmt.Sprintf(":%d", port),
+		Addr:    fmt.Sprintf("%s:%d", ip, port),
 		Handler: mux,
 	}
 

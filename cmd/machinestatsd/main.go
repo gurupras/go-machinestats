@@ -198,7 +198,7 @@ func main() {
 		}
 	}()
 
-	mux, stop, err := machinestats.StartHTTPServer(*serverPort)
+	mux, stop, err := machinestats.StartHTTPServer("0.0.0.0", *serverPort)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to start HTTP server: %v\n", err)
 		os.Exit(-1)
