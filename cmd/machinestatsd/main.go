@@ -71,7 +71,7 @@ var (
 	prefix     = kingpin.Flag("statsd-prefix", "Prefix with which all metrics are sent").Short('p').Default(defaultPrefix).String()
 	prefixIP   = kingpin.Flag("prefix-ip", "Add IP address as part of prefix").Default(defaultPrefixIP).Bool()
 	procFSPath = kingpin.Flag("procfs", "Path to procfs").Default(defaultProcFSPath).String()
-	serverPort = kingpin.Flag("server-port", "HTTP server port").Short('p').Default(defaultServerPort).Int()
+	serverPort = kingpin.Flag("server-port", "HTTP server port").Short('P').Default(defaultServerPort).Int()
 
 	enableCoturn   = kingpin.Flag("enable-coturn", "Enable stat collection from Coturn instance").Default(defaultCoturn).Bool()
 	coturnHost     = kingpin.Flag("coturn-host", "Coturn server host").Default(defaultCoturnHost).String()
