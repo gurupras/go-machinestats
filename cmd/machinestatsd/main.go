@@ -63,6 +63,9 @@ var (
 	defaultProcFSPath     = getEnv("MACHINESTATSD_PROCFS_PATH", "/proc")
 	defaultServerPort     = getEnv("MACHINESTATSD_SERVER_PORT", "1122")
 
+	defaultHTTPMetricsURL    = getEnv("MACHINESTATSD_HTTP_METRICS_URL", "")
+	defaultHTTPMetricsPrefix = getEnv("MACHINESTATSD_HTTP_METRICS_PREFIX", "")
+
 	debug      = kingpin.Flag("debug", "Debug mode. Don't sent stats to backend").Short('D').Default(defaultDebugMode).Bool()
 	verbose    = kingpin.Flag("verbose", "Verbose logs").Short('v').Default(defaultVerbose).Bool()
 	allCPUs    = kingpin.Flag("all-cpus", "Log each individual CPU").Short('C').Default(defaultAllCpus).Bool()
@@ -77,6 +80,9 @@ var (
 	coturnHost     = kingpin.Flag("coturn-host", "Coturn server host").Default(defaultCoturnHost).String()
 	coturnPort     = kingpin.Flag("coturn-port", "Coturn server CLI port").Default(defaultCoturnPort).Int()
 	coturnPassword = kingpin.Flag("coturn-password", "Coturn server CLI password").Default(defaultCoturnPassword).String()
+
+	httpMetricsURL    = kingpin.Flag("http-metrics-url", "URL to fetch metrics from via HTTP").Default(defaultHTTPMetricsURL).String()
+	httpMetricsPrefix = kingpin.Flag("http-metrics-prefix", "Common prefix to apply for each metric retrieved via HTTP").Default(defaultHTTPMetricsPrefix).String()
 )
 
 func asFloat64(input interface{}) float64 {
@@ -158,6 +164,11 @@ func main() {
 			log.Fatalf("Failed to create coturnStat: %v\n", err)
 		}
 		stats = append(stats, coturnStat)
+	}
+
+	if *httpMetricsURL != "" {
+		httpStat := machinestats.NewHTTPStat("http-metrics", *httpMetricsURL, *httpMetricsPrefix)
+		stats = append(stats, httpStat)
 	}
 
 	prefixArr := make([]string, 0)
