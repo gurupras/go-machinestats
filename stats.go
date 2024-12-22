@@ -28,3 +28,19 @@ type Measurement interface {
 	Type() StatType
 	Value() interface{}
 }
+
+type BasicMeasurement struct {
+	name            string
+	measurementType StatType
+	value           interface{}
+}
+
+func (bm *BasicMeasurement) Name() string {
+	return bm.name
+}
+func (bm *BasicMeasurement) Type() StatType {
+	return bm.measurementType
+}
+func (bm *BasicMeasurement) Value() interface{} {
+	return bm.value
+}
